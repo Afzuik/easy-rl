@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 2 章 马尔可夫决策过程 — 知识图谱</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    background: #0f1923;
+    overflow: hidden;
+    height: 100vh;
+  }
+  #header {
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    z-index: 10;
+    color: #e0e0e0;
+    font-size: 22px;
+    font-weight: bold;
+    text-shadow: 0 0 12px rgba(100,180,255,0.4);
+    pointer-events: none;
+  }
+  #legend {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 10;
+    background: rgba(20,30,40,0.85);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 14px 18px;
+    color: #ccc;
+    font-size: 13px;
+    display: flex;
+    gap: 28px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-dot {
+    width: 13px; height: 13px; border-radius: 50%; display: inline-block;
+  }
+  canvas { display: block; }
+  #tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(10,18,28,0.92);
+    color: #e8e8e8;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    border: 1px solid rgba(255,255,255,0.15);
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 320px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">第 2 章 · 马尔可夫决策过程 知识图谱</div>
+<div id="tooltip"></div>
+<div id="legend">
+  <div class="legend-item"><span class="legend-dot" style="background:#ff6b6b"></span> 基础概念</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#ffd93d"></span> 价值/方程</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#6bcb77"></span> 算法/方法</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#4d96ff"></span> MDP 核心</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#c084fc"></span> 控制/最优</div>
+  <div class="legend-item" style="color:#aaa;">🖱 拖拽 · 滚轮缩放 · 悬停查看</div>
+</div>
+
+<script type="module">
+import { ForceGraph3D } from 'https://cdn.jsdelivr.net/npm/3d-force-graph@1.73/+esm';
+
+const graphEl = document.getElementById('header').parentElement;
+
+const data = {
+  nodes: [
+    // ── 第一部分：MP ──
+    { id: "markov_property",  group: "base",   label: "马尔可夫性质",         desc: "给定现在，未来与过去条件独立" },
+    { id: "mp",                group: "base",   label: "马尔可夫过程 (MP)",    desc: "具有马尔可夫性质的随机变量序列" },
+    { id: "markov_chain",      group: "base",   label: "马尔可夫链",           desc: "离散时间、有限状态的 MP" },
+    { id: "transition_matrix", group: "base",   label: "状态转移矩阵 P",      desc: "描述 p(s'|s)，每行为条件概率分布" },
+
+    // ── 第二部分：MRP ──
+    { id: "mrp",              group: "value",  label: "马尔可夫奖励过程 (MRP)", desc: "MP + 奖励函数 R + 折扣因子 γ" },
+    { id: "reward_func",      group: "value",  label: "奖励函数 R(s)",          desc: "进入某状态时代期望奖励" },
+    { id: "discount",         group: "value",  label: "折扣因子 γ ∈ [0,1]",    desc: "平衡即时与未来奖励" },
+    { id: "return_gt",        group: "value",  label: "回报 G_t",               desc: "G_t = r_{t+1}+γr_{t+2}+γ²r_{t+3}+…" },
+    { id: "value_func_v",     group: "value",  label: "状态价值函数 V(s)",     desc: "V(s) = E[G_t | s_t=s]，回报的期望" },
+
+    // Bellman
+    { id: "bellman_eq",       group: "value",  label: "贝尔曼方程 (MRP)",    desc: "V(s)=R(s)+γΣ p(s'|s)V(s')" },
+    { id: "bellman_matrix",   group: "value",  label: "矩阵形式：V=(I-γP)⁻¹R",desc: "解析解，复杂度 O(N³)，仅适用小规模" },
+
+    // 迭代方法
+    { id: "mc_method",        group: "algo",   label: "蒙特卡洛方法 (MC)",    desc: "采样轨迹 → 取回报均值估计 V(s)" },
+    { id: "dp_method",        group: "algo",   label: "动态规划 (DP)",        desc: "反复迭代贝尔曼方程直到收敛" },
+    { id: "bootstrapping",    group: "algo",   label: "自举 (Bootstrapping)", desc: "用后继估计更新当前估计" },
+    { id: "td_learning",      group: "algo",   label: "时序差分学习 (TD)",    desc: "MC 与 DP 的结合" },
+
+    // ── 第三部分：MDP ──
+    { id: "mdp",              group: "mdp",    label: "马尔可夫决策过程 (MDP)", desc: "MRP + 动作 a + 策略 π" },
+    { id: "action",           group: "mdp",    label: "动作 a",                desc: "智能体的决策变量" },
+    { id: "policy",           group: "mdp",    label: "策略 π(a|s)",           desc: "给定状态选择动作的概率分布" },
+    { id: "mdp_to_mrp",       group: "mdp",    label: "MDP → MRP 化简",      desc: "P_π(s'|s)=Σπ(a|s)p(s'|s,a)" },
+    { id: "v_pi",             group: "mdp",    label: "V_π(s) 状态价值函数",   desc: "在策略 π 下对状态 s 的期望回报" },
+    { id: "q_pi",             group: "mdp",    label: "Q_π(s,a) 动作价值函数", desc: "在状态 s 采取动作 a 后的期望回报" },
+    { id: "v_q_relation",     group: "mdp",    label: "V↔Q 关系",             desc: "V_π(s)=Σπ(a|s)Q_π(s,a)" },
+
+    // Bellman Expectation + Backup
+    { id: "bellman_expectation", group: "value", label: "贝尔曼期望方程",      desc: "当前 V/Q 与下一时刻 V/Q 的迭代关系" },
+    { id: "backup_diagram",   group: "value",  label: "备份图 (Backup Diagram)", desc: "可视化价值信息的传播方向" },
+
+    // ── 第四部分：预测 ──
+    { id: "prediction",       group: "algo",   label: "预测 (Prediction)",    desc: "输入 MDP+π → 输出 V_π" },
+    { id: "policy_eval",      group: "algo",   label: "策略评估",              desc: "贝尔曼期望备份反复迭代至收敛" },
+    { id: "sync_backup",      group: "algo",   label: "同步备份",              desc: "每次迭代更新所有状态" },
+
+    // ── 第五部分：控制 ──
+    { id: "control",          group: "optimal", label: "控制 (Control)",       desc: "输入 MDP → 输出 V* 和 π*" },
+    { id: "optimal_v",        group: "optimal", label: "最优价值函数 V*(s)",   desc: "V*(s) = max_π V_π(s)" },
+    { id: "optimal_pi",       group: "optimal", label: "最优策略 π*",          desc: "π*(s) = argmax_π V_π(s)" },
+    { id: "bellman_optimal",  group: "optimal", label: "贝尔曼最优方程",       desc: "V*(s)=max_a[R(s,a)+γΣp(s'|s,a)V*(s')]" },
+    { id: "q_table",          group: "optimal", label: "Q 表格",               desc: "状态×动作的价值矩阵" },
+    { id: "policy_iteration", group: "optimal", label: "策略迭代",             desc: "策略评估 + 策略改进 交替进行" },
+    { id: "policy_improve",   group: "optimal", label: "策略改进",             desc: "π_{i+1}=argmax_a Q_{π_i}(s,a)" },
+    { id: "value_iteration",  group: "optimal", label: "价值迭代",             desc: "直接用贝尔曼最优方程迭代 V" },
+    { id: "optimality_principle", group: "optimal", label: "最优性原理",       desc: "子问题最优 ⇒ 整体最优" },
+  ],
+
+  links: [
+    // MP 部分
+    { source: "markov_property",   target: "mp" },
+    { source: "mp",                target: "markov_chain" },
+    { source: "markov_chain",      target: "transition_matrix" },
+
+    // MP → MRP
+    { source: "mp",                target: "mrp" },
+    { source: "mrp",               target: "reward_func" },
+    { source: "mrp",               target: "discount" },
+    { source: "mrp",               target: "return_gt" },
+    { source: "return_gt",         target: "value_func_v" },
+    { source: "value_func_v",      target: "bellman_eq" },
+    { source: "bellman_eq",        target: "bellman_matrix" },
+
+    // MRP 迭代方法
+    { source: "mrp",               target: "mc_method" },
+    { source: "mrp",               target: "dp_method" },
+    { source: "dp_method",         target: "bootstrapping" },
+    { source: "mc_method",         target: "td_learning" },
+    { source: "dp_method",         target: "td_learning" },
+
+    // MRP → MDP
+    { source: "mrp",               target: "mdp" },
+    { source: "mdp",               target: "action" },
+    { source: "mdp",               target: "policy" },
+    { source: "policy",            target: "mdp_to_mrp" },
+    { source: "mdp_to_mrp",        target: "mrp" },
+
+    // MDP 核心
+    { source: "mdp",               target: "v_pi" },
+    { source: "mdp",               target: "q_pi" },
+    { source: "v_pi",              target: "v_q_relation" },
+    { source: "q_pi",              target: "v_q_relation" },
+    { source: "v_q_relation",      target: "bellman_expectation" },
+    { source: "bellman_expectation", target: "backup_diagram" },
+
+    // 预测
+    { source: "mdp",               target: "prediction" },
+    { source: "prediction",        target: "policy_eval" },
+    { source: "bellman_expectation", target: "policy_eval" },
+    { source: "policy_eval",       target: "sync_backup" },
+    { source: "dp_method",         target: "policy_eval" },
+
+    // 控制
+    { source: "mdp",               target: "control" },
+    { source: "control",           target: "optimal_v" },
+    { source: "control",           target: "optimal_pi" },
+    { source: "control",           target: "bellman_optimal" },
+    { source: "bellman_optimal",   target: "q_table" },
+    { source: "bellman_optimal",   target: "policy_iteration" },
+    { source: "bellman_optimal",   target: "value_iteration" },
+    { source: "policy_iteration",  target: "policy_eval" },
+    { source: "policy_iteration",  target: "policy_improve" },
+    { source: "policy_improve",    target: "q_table" },
+    { source: "value_iteration",   target: "optimality_principle" },
+  ],
+};
+
+// Color map
+const groupColors = {
+  base:    '#ff6b6b',
+  value:   '#ffd93d',
+  algo:    '#6bcb77',
+  mdp:     '#4d96ff',
+  optimal: '#c084fc',
+};
+
+const g = ForceGraph3D()(graphEl)
+  .graphData(data)
+  .nodeLabel('label')
+  .nodeAutoColorBy('group')
+  .nodeColor(d => groupColors[d.group] || '#888')
+  .nodeVal(d => {
+    const roots = ['mp','mrp','mdp','bellman_eq','bellman_expectation','bellman_optimal'];
+    return roots.includes(d.id) ? 3.5 : 2;
+  })
+  .linkWidth(0.6)
+  .linkOpacity(0.35)
+  .linkDirectionalParticles(1.2)
+  .linkDirectionalParticleWidth(1.4)
+  .backgroundColor('#0f1923')
+  .showNavInfo(false)
+  .onNodeHover(node => {
+    const tip = document.getElementById('tooltip');
+    if (node) {
+      tip.innerHTML = `<b style="font-size:15px;color:${groupColors[node.group]}">${node.label}</b><br><span style="color:#aaa;font-size:12px;">${node.desc || ''}</span>`;
+      tip.style.opacity = '1';
+      tip.style.left = '20px';
+      tip.style.top = '70px';
+    } else {
+      tip.style.opacity = '0';
+    }
+  });
+
+// Camera
+g.cameraPosition({ x: 0, y: 40, z: 280 }, { x: 0, y: 0, z: 0 });
+</script>
+</body>
+</html>
