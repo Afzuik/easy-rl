@@ -4,294 +4,288 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>第 2 章 马尔可夫决策过程 — 知识图谱</title>
+
+<!-- KaTeX -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-    background: #f5f6fa;
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    background: #0f172a;
     overflow: hidden;
     height: 100vh;
   }
+
+  /* KaTeX dark */
+  .katex { color: #e2e8f0; }
+  #tooltip .katex { color: #f1f5f9; font-size: 1.02em; }
+
   #header {
-    position: absolute;
-    top: 14px;
-    left: 20px;
-    z-index: 10;
-    font-size: 20px;
-    font-weight: bold;
-    color: #2c3e50;
+    position: fixed; top: 16px; left: 24px;
+    font-size: 20px; font-weight: 700; color: #e2e8f0;
+    z-index: 10; pointer-events: none; letter-spacing: .3px;
+  }
+  #header span { color: #64748b; font-weight: 400; font-size: 15px; margin-left: 8px; }
+
+  svg { width: 100vw; height: 100vh; }
+
+  .node { cursor: pointer; }
+  .node rect { rx: 8; ry: 8; transition: filter 0.2s; }
+  .node:hover rect { filter: brightness(1.3) drop-shadow(0 0 10px rgba(255,255,255,0.15)); }
+  .node text {
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
     pointer-events: none;
   }
-  #legend {
-    position: absolute;
-    top: 50px;
-    left: 20px;
-    z-index: 10;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 24px;
-    font-size: 12px;
-    color: #555;
+
+  .link {
+    fill: none; stroke: #334155; stroke-width: 2;
+    stroke-linecap: round; transition: stroke 0.2s;
   }
-  .legend-item { display: flex; align-items: center; gap: 6px; }
-  .legend-dot {
-    width: 11px; height: 11px; border-radius: 50%; display: inline-block;
-  }
-  svg { width: 100%; height: 100%; }
-  .node circle { cursor: pointer; stroke: #fff; stroke-width: 1.5px; }
-  .node text { font-size: 11px; font-family: 'Microsoft YaHei','PingFang SC',sans-serif; pointer-events: none; }
-  .link { stroke: #bbb; stroke-opacity: 0.6; }
+  .link:hover { stroke: #64748b; }
+
   #tooltip {
-    position: absolute;
-    pointer-events: none;
-    background: rgba(30,30,50,0.93);
-    color: #e8e8e8;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 13px;
-    border: 1px solid rgba(255,255,255,0.12);
-    opacity: 0;
-    transition: opacity 0.15s;
-    max-width: 340px;
-    line-height: 1.5;
-    z-index: 20;
+    position: absolute; pointer-events: none;
+    background: rgba(15, 23, 42, 0.96); color: #e2e8f0;
+    padding: 12px 16px; border-radius: 12px; font-size: 13px;
+    border: 1px solid #334155;
+    opacity: 0; transition: opacity 0.15s;
+    max-width: 400px; line-height: 1.7; z-index: 20;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
   }
-  #info {
-    position: absolute;
-    bottom: 14px;
-    right: 20px;
-    color: #999;
-    font-size: 12px;
-    z-index: 10;
+  #tooltip b { font-size: 14px; }
+  #tooltip .cat { font-size: 10px; color: #64748b; margin-bottom: 4px; }
+
+  #legend {
+    position: fixed; bottom: 20px; left: 24px;
+    display: flex; gap: 18px; font-size: 11px; color: #94a3b8; z-index: 10;
+    background: rgba(15,23,42,0.8); padding: 10px 18px; border-radius: 10px;
+    border: 1px solid #1e293b;
   }
+  .leg { display: flex; align-items: center; gap: 6px; }
+  .leg span { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 </style>
 </head>
 <body>
 
-<div id="header">第 2 章 · 马尔可夫决策过程 知识图谱</div>
+<div id="header">🧠 马尔可夫决策过程 <span>第 2 章 · 知识图谱</span></div>
 <div id="tooltip"></div>
 <div id="legend">
-  <div class="legend-item"><span class="legend-dot" style="background:#ff6b6b"></span> 基础概念</div>
-  <div class="legend-item"><span class="legend-dot" style="background:#ffd93d"></span> 价值/方程</div>
-  <div class="legend-item"><span class="legend-dot" style="background:#6bcb77"></span> 算法/方法</div>
-  <div class="legend-item"><span class="legend-dot" style="background:#4d96ff"></span> MDP 核心</div>
-  <div class="legend-item"><span class="legend-dot" style="background:#c084fc"></span> 控制/最优</div>
-  <div class="legend-item" style="color:#aaa; margin-left:12px">🖱 拖拽节点 · 滚轮缩放 · 悬停查看</div>
+  <div class="leg"><span style="background:#ef4444"></span> MP / 基础</div>
+  <div class="leg"><span style="background:#f59e0b"></span> MRP / 价值</div>
+  <div class="leg"><span style="background:#3b82f6"></span> MDP / 策略</div>
+  <div class="leg"><span style="background:#8b5cf6"></span> 控制 / 最优</div>
+  <span style="color:#475569">| 🖱 滚轮缩放 · 拖拽平移 · 悬停看详情</span>
 </div>
-<div id="info">节点数: 37 | 连线: 39</div>
 
 <script src="https://d3js.org/d3.v7.min.js"></script>
+<script>window.d3||document.write('<script src="https://cdn.bootcdn.net/ajax/libs/d3/7.9.0/d3.min.js"><\/script>');</script>
 <script>
-const data = {
-  nodes: [
-    { id: "markov_property",  group: "base",   label: "马尔可夫性质",         desc: "给定现在状态，未来与过去条件独立。所有马尔可夫过程的基础。" },
-    { id: "mp",                group: "base",   label: "马尔可夫过程 (MP)",    desc: "具有马尔可夫性质的随机变量序列 s₁,…,sₜ", size: 14 },
-    { id: "markov_chain",      group: "base",   label: "马尔可夫链",           desc: "离散时间、有限状态的马尔可夫过程" },
-    { id: "transition_matrix", group: "base",   label: "状态转移矩阵 P",      desc: "p(s'|s)，每行是一个条件概率分布，∑ⱼPᵢⱼ=1" },
-    { id: "mrp",              group: "value",  label: "MRP 马尔可夫奖励过程", desc: "MP + 奖励函数 R(s) + 折扣因子 γ", size: 15 },
-    { id: "reward_func",      group: "value",  label: "奖励函数 R(s)",         desc: "到达状态 s 时的期望即时奖励；有限状态时可表示为向量 R" },
-    { id: "discount",         group: "value",  label: "折扣因子 γ ∈ [0,1]",   desc: "γ→0 只关注即时奖励；γ→1 平等看待未来奖励；可作超参数调节" },
-    { id: "return_gt",        group: "value",  label: "回报 G_t",              desc: "G_t = r_{t+1} + γr_{t+2} + γ²r_{t+3} + … + γ^{T-t-1}r_T" },
-    { id: "value_func_v",     group: "value",  label: "V(s) 状态价值函数",    desc: "V(s) = E[G_t | s_t=s]，从状态 s 出发的未来折扣回报期望" },
-    { id: "bellman_eq",       group: "value",  label: "贝尔曼方程 (MRP)",     desc: "V(s)=R(s)+γΣp(s'|s)V(s')。即时奖励 + 未来折扣总和", size: 14 },
-    { id: "bellman_matrix",   group: "value",  label: "矩阵解析解 V=(I-γP)⁻¹R", desc: "贝尔曼方程的矩阵形式。复杂度 O(N³)，仅适用小规模（N<1000）" },
-    { id: "mc_method",        group: "algo",   label: "蒙特卡洛 (MC)",         desc: "采样多条轨迹 → 计算每条回报 → 取平均估计 V(s)" },
-    { id: "dp_method",        group: "algo",   label: "动态规划 (DP)",         desc: "反复迭代贝尔曼方程直到 V 收敛（自举）" },
-    { id: "bootstrapping",    group: "algo",   label: "自举",                  desc: "用后继状态的估计值来更新当前状态的估计值" },
-    { id: "td_learning",      group: "algo",   label: "时序差分 (TD)",         desc: "MC（采样）与 DP（自举）的结合，第3章详述" },
-    { id: "mdp",              group: "mdp",    label: "MDP 马尔可夫决策过程",  desc: "MRP + 动作 a + 策略 π。p(s'|s,a), R(s,a) 均依赖动作", size: 15 },
-    { id: "action",           group: "mdp",    label: "动作 a",                desc: "智能体的决策变量；状态转移和奖励都受动作影响" },
-    { id: "policy",           group: "mdp",    label: "策略 π(a|s)",           desc: "给定状态 s，选择动作 a 的概率分布（平稳策略）" },
-    { id: "mdp_to_mrp",       group: "mdp",    label: "MDP → MRP 化简",       desc: "P_π(s'|s)=Σ_a π(a|s)p(s'|s,a)；r_π(s)=Σ_a π(a|s)R(s,a). 给定策略后去动作" },
-    { id: "v_pi",             group: "mdp",    label: "V_π(s)",                desc: "在策略 π 下状态 s 的期望回报：E_π[G_t|s_t=s]" },
-    { id: "q_pi",             group: "mdp",    label: "Q_π(s,a)",              desc: "在状态 s 采取动作 a 后的期望回报：E_π[G_t|s_t=s,a_t=a]" },
-    { id: "v_q_relation",     group: "mdp",    label: "V ↔ Q 关系",           desc: "V_π(s)=Σ_a π(a|s)Q_π(s,a)；Q_π(s,a)=R(s,a)+γΣp(s'|s,a)V_π(s')" },
-    { id: "bellman_expectation", group: "value", label: "贝尔曼期望方程",      desc: "V_π(s)=E_π[r_{t+1}+γV_π(s_{t+1})|s_t=s]。定义了当前与未来 V/Q 的迭代关系", size: 13 },
-    { id: "backup_diagram",   group: "value",  label: "备份图",                desc: "空心圆=状态，实心圆=状态-动作对。可视化价值从后继反向传播到当前节点" },
-    { id: "prediction",       group: "algo",   label: "预测 (Prediction)",     desc: "输入 MDP + π → 输出 V_π。即策略评估", size: 13 },
-    { id: "policy_eval",      group: "algo",   label: "策略评估算法",           desc: "贝尔曼期望备份反复迭代：V^{t+1}(s)=Σπ(a|s)[R+γΣpV^t(s')]，直至收敛" },
-    { id: "sync_backup",      group: "algo",   label: "同步备份",              desc: "每次迭代更新所有状态（vs 异步备份只更新部分状态）" },
-    { id: "control",          group: "optimal",label: "控制 (Control)",        desc: "输入 MDP → 输出 V* 和 π*。搜索最优策略", size: 15 },
-    { id: "optimal_v",        group: "optimal",label: "最优价值 V*(s)",        desc: "V*(s) = max_π V_π(s)。所有可能策略中最大的状态价值" },
-    { id: "optimal_pi",       group: "optimal",label: "最优策略 π*",           desc: "π*(s) = argmax_π V_π(s)。使每个状态价值最大化的策略（可能不唯一）" },
-    { id: "bellman_optimal",  group: "optimal",label: "贝尔曼最优方程",        desc: "V*(s)=max_a[R(s,a)+γΣp(s'|s,a)V*(s')]；Q*(s,a)=R(s,a)+γΣp·maxQ*(s',a') 。最优策略的理论基石", size: 14 },
-    { id: "q_table",          group: "optimal",label: "Q 表格",                desc: "横轴=状态，纵轴=动作。每列取 arg max 即得该状态最优动作" },
-    { id: "policy_iteration", group: "optimal",label: "策略迭代",              desc: "策略评估 + 策略改进交替迭代。使用贝尔曼期望方程", size: 13 },
-    { id: "policy_improve",   group: "optimal",label: "策略改进",              desc: "π_{i+1}(s)=argmax_a Q_{π_i}(s,a)。对 Q 函数贪心" },
-    { id: "value_iteration",  group: "optimal",label: "价值迭代",              desc: "直接用贝尔曼最优方程迭代 V。中间结果无意义，收敛后提取 π*", size: 13 },
-    { id: "optimality_principle", group: "optimal",label: "最优性原理",         desc: "π 在 s 达到 V*(s) ⇔ 所有可达后继 s' 均已达 V*(s')" },
-  ],
-  links: [
-    { source: "markov_property",   target: "mp" },
-    { source: "mp",                target: "markov_chain" },
-    { source: "markov_chain",      target: "transition_matrix" },
-    { source: "mp",                target: "mrp" },
-    { source: "mrp",               target: "reward_func" },
-    { source: "mrp",               target: "discount" },
-    { source: "mrp",               target: "return_gt" },
-    { source: "return_gt",         target: "value_func_v" },
-    { source: "value_func_v",      target: "bellman_eq" },
-    { source: "bellman_eq",        target: "bellman_matrix" },
-    { source: "mrp",               target: "mc_method" },
-    { source: "mrp",               target: "dp_method" },
-    { source: "dp_method",         target: "bootstrapping" },
-    { source: "mc_method",         target: "td_learning" },
-    { source: "dp_method",         target: "td_learning" },
-    { source: "mrp",               target: "mdp" },
-    { source: "mdp",               target: "action" },
-    { source: "mdp",               target: "policy" },
-    { source: "policy",            target: "mdp_to_mrp" },
-    { source: "mdp_to_mrp",        target: "mrp" },
-    { source: "mdp",               target: "v_pi" },
-    { source: "mdp",               target: "q_pi" },
-    { source: "v_pi",              target: "v_q_relation" },
-    { source: "q_pi",              target: "v_q_relation" },
-    { source: "v_q_relation",      target: "bellman_expectation" },
-    { source: "bellman_expectation", target: "backup_diagram" },
-    { source: "mdp",               target: "prediction" },
-    { source: "prediction",        target: "policy_eval" },
-    { source: "bellman_expectation", target: "policy_eval" },
-    { source: "policy_eval",       target: "sync_backup" },
-    { source: "dp_method",         target: "policy_eval" },
-    { source: "mdp",               target: "control" },
-    { source: "control",           target: "optimal_v" },
-    { source: "control",           target: "optimal_pi" },
-    { source: "control",           target: "bellman_optimal" },
-    { source: "bellman_optimal",   target: "q_table" },
-    { source: "bellman_optimal",   target: "policy_iteration" },
-    { source: "bellman_optimal",   target: "value_iteration" },
-    { source: "policy_iteration",  target: "policy_eval" },
-    { source: "policy_iteration",  target: "policy_improve" },
-    { source: "policy_improve",    target: "q_table" },
-    { source: "value_iteration",   target: "optimality_principle" },
-  ],
+// ───────── KaTeX helper ─────────
+function renderMath(el) {
+  if (typeof renderMathInElement !== 'function') return;
+  try {
+    renderMathInElement(el, {
+      delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
+      throwOnError: false, trust: true
+    });
+  } catch(e){}
+}
+
+// ───────── DATA ─────────
+const treeData = {
+  name: "第2章 马尔可夫决策过程",
+  color: "#38bdf8", cat: "",
+  desc: "强化学习的基本框架：智能体与环境交互的序列决策模型。从 MP $\\to$ MRP $\\to$ MDP 逐步引入状态、奖励、动作与策略。",
+  children: [
+    {
+      name: "2.1 马尔可夫过程 (MP)",
+      color: "#ef4444", cat: "MP",
+      desc: "具有马尔可夫性质的随机变量序列 $s_1,\\ldots,s_t$。这是整个框架的起点。",
+      children: [
+        { name: "马尔可夫性质", color: "#ef4444", cat: "MP",
+          desc: "$p(X_{t+1}\\mid X_{0:t}) = p(X_{t+1}\\mid X_t)$。未来仅取决于当前，与历史条件独立。" },
+        { name: "马尔可夫链", color: "#ef4444", cat: "MP",
+          desc: "离散时间、有限状态的马尔可夫过程。状态在有限集合中按概率转移。",
+          children: [
+            { name: "状态转移矩阵 P", color: "#dc2626", cat: "MP",
+              desc: "$p(s'\\mid s)$：每行描述当前状态到所有后继状态的概率分布，$\\sum_j P_{ij} = 1$。" }
+          ]},
+      ]
+    },
+    {
+      name: "2.2 马尔可夫奖励过程 (MRP)",
+      color: "#f59e0b", cat: "MRP",
+      desc: "MP + 奖励函数 $R(s)$ + 折扣因子 $\\gamma$。引入「价值」概念。",
+      children: [
+        { name: "回报 G_t", color: "#f59e0b", cat: "MRP",
+          desc: "$G_t = r_{t+1} + \\gamma r_{t+2} + \\gamma^2 r_{t+3} + \\ldots + \\gamma^{T-t-1}r_T$。从时刻 $t$ 开始的折扣累积奖励。" },
+        { name: "价值函数 V(s)", color: "#f59e0b", cat: "MRP",
+          desc: "$V(s) = \\mathbb{E}[G_t \\mid s_t=s]$。从状态 $s$ 出发的折扣回报期望，衡量状态优劣。" },
+        { name: "折扣因子 γ ∈ [0,1]", color: "#ea580c", cat: "MRP",
+          desc: "$\\gamma \\to 0$ 目光短浅；$\\gamma \\to 1$ 看重远期。数学上保证无穷级数收敛。" },
+        { name: "贝尔曼方程", color: "#f59e0b", cat: "MRP",
+          desc: "$V(s) = R(s) + \\gamma \\sum_{s'} p(s'\\mid s) V(s')$。即时奖励 + 折扣后继价值的期望。",
+          children: [
+            { name: "矩阵解 V=(I−γP)⁻¹R", color: "#ea580c", cat: "MRP",
+              desc: "贝尔曼方程的闭式解：$V = (I - \\gamma P)^{-1}R$。复杂度 $O(N^3)$，仅适用 $N<1000$。" }
+          ]},
+        { name: "蒙特卡洛 (MC)", color: "#22c55e", cat: "方法",
+          desc: "采样完整轨迹 $\\to$ 计算回报 $\\to$ 取平均估计 $V(s)$。无自举，必须等到回合结束。" },
+        { name: "动态规划 (DP)", color: "#22c55e", cat: "方法",
+          desc: "反复迭代贝尔曼方程直至 $V$ 收敛。使用自举。需已知 MDP 模型。",
+          children: [
+            { name: "自举 (Bootstrapping)", color: "#16a34a", cat: "方法",
+              desc: "用后继状态的估计值更新当前状态。DP 与 TD 的核心，MC 不使用。" }
+          ]},
+        { name: "时序差分 (TD)", color: "#22c55e", cat: "方法",
+          desc: "MC 的采样 + DP 的自举。免模型、在线学习。$\\to$ 第 3 章详述。" }
+      ]
+    },
+    {
+      name: "2.3 马尔可夫决策过程 (MDP)",
+      color: "#3b82f6", cat: "MDP",
+      desc: "MRP + 动作 $a$ + 策略 $\\pi$。转移 $p(s'\\mid s,a)$ 和奖励 $R(s,a)$ 均依赖动作。强化学习核心框架。",
+      children: [
+        { name: "策略 π(a|s)", color: "#3b82f6", cat: "MDP",
+          desc: "给定状态 $s$，选择各动作的概率分布。智能体的行为规则（平稳策略）。" },
+        { name: "MDP → MRP 化简", color: "#3b82f6", cat: "MDP",
+          desc: "给定 $\\pi$：$P_\\pi(s'\\mid s)=\\sum_a \\pi(a\\mid s)p(s'\\mid s,a)$；$R_\\pi(s)=\\sum_a \\pi(a\\mid s)R(s,a)$。消去动作维度。" },
+        { name: "V_π(s) 与 Q_π(s,a)", color: "#3b82f6", cat: "MDP",
+          desc: "$V_\\pi(s)=\\mathbb{E}_\\pi[G_t\\mid s_t=s]$；$Q_\\pi(s,a)=\\mathbb{E}_\\pi[G_t\\mid s_t=s,a_t=a]$。$V$ 评价状态，$Q$ 评价状态-动作对。",
+          children: [
+            { name: "V ↔ Q 关系", color: "#60a5fa", cat: "MDP",
+              desc: "$V_\\pi(s)=\\sum_a \\pi(a\\mid s)Q_\\pi(s,a)$；$Q_\\pi(s,a)=R(s,a)+\\gamma\\sum_{s'}p(s'\\mid s,a)V_\\pi(s')$。两者可相互推导。" }
+          ]},
+        { name: "贝尔曼期望方程", color: "#2563eb", cat: "MDP",
+          desc: "$V_\\pi(s)=\\mathbb{E}_\\pi[r_{t+1}+\\gamma V_\\pi(s_{t+1})\\mid s_t=s]$。定义当前价值与后继价值的迭代关系。",
+          children: [
+            { name: "备份图", color: "#60a5fa", cat: "MDP",
+              desc: "空心圆 = 状态，实心圆 = 动作。可视化价值从后继反向传播到当前节点的信息流。" }
+          ]},
+        { name: "预测：策略评估", color: "#22c55e", cat: "方法",
+          desc: "输入 MDP + $\\pi$ $\\to$ 输出 $V_\\pi$。贝尔曼期望备份反复迭代至收敛。" },
+        { name: "控制：寻找最优策略", color: "#8b5cf6", cat: "最优",
+          desc: "输入 MDP $\\to$ 输出 $V^*$ 与 $\\pi^*$。使每个状态价值最大化的策略。",
+          children: [
+            { name: "V*(s) 与 π*", color: "#8b5cf6", cat: "最优",
+              desc: "$V^*(s)=\\max_\\pi V_\\pi(s)$；$\\pi^*(s)=\\arg\\max_\\pi V_\\pi(s)$。最优策略可能不唯一，但 $V^*$ 唯一。" },
+            { name: "贝尔曼最优方程", color: "#7c3aed", cat: "最优",
+              desc: "$V^*(s)=\\max_a\\big[R(s,a)+\\gamma\\sum_{s'}p(s'\\mid s,a)V^*(s')\\big]$。最优策略的理论基石。",
+              children: [
+                { name: "Q 表格", color: "#a78bfa", cat: "最优",
+                  desc: "行 = 状态，列 = 动作。每行 $\\arg\\max$ 即最优动作。$\\to$ 第 3 章核心数据结构。" }
+              ]},
+            { name: "策略迭代", color: "#8b5cf6", cat: "最优",
+              desc: "策略评估 + 策略改进 交替进行。使用贝尔曼期望方程。收敛快但每轮评估开销大。",
+              children: [
+                { name: "策略改进", color: "#a78bfa", cat: "最优",
+                  desc: "$\\pi_{i+1}(s)=\\arg\\max_a Q_{\\pi_i}(s,a)$。对 $Q$ 贪心。" }
+              ]},
+            { name: "价值迭代", color: "#8b5cf6", cat: "最优",
+              desc: "直接用贝尔曼最优方程迭代 $V$。中间结果无实际意义，收敛后一次性提取 $\\pi^*$。",
+              children: [
+                { name: "最优性原理", color: "#a78bfa", cat: "最优",
+                  desc: "$\\pi$ 在 $s$ 达 $V^*(s)$ $\\iff$ 对所有可达后继 $s'$ 均已达 $V^*(s')$。" }
+              ]},
+          ]},
+      ]
+    }
+  ]
 };
 
-const groupColors = {
-  base:    '#ff6b6b',
-  value:   '#f0a500',
-  algo:    '#27ae60',
-  mdp:     '#4d96ff',
-  optimal: '#8e44ad',
-};
+// ───────── LAYOUT ─────────
+const W = window.innerWidth, H = window.innerHeight;
+const dx = 200, dy = 52;
 
-const groupNames = {
-  base:    '基础概念',
-  value:   '价值/方程',
-  algo:    '算法/方法',
-  mdp:     'MDP 核心',
-  optimal: '控制/最优',
-};
-
-const width = window.innerWidth;
-const height = window.innerHeight;
-
-const svg = d3.select("body").append("svg")
-  .attr("width", width)
-  .attr("height", height);
-
+const svg = d3.select("body").append("svg").attr("width", W).attr("height", H);
 const g = svg.append("g");
 
-// Zoom
-svg.call(d3.zoom()
-  .scaleExtent([0.15, 3])
-  .on("zoom", (event) => g.attr("transform", event.transform)));
+svg.call(d3.zoom().scaleExtent([0.12, 2.5])
+  .on("zoom", ev => g.attr("transform", ev.transform)));
 
-// Tooltip
-const tip = d3.select("#tooltip");
+const root = d3.hierarchy(treeData);
+d3.tree().nodeSize([dy, dx])(root);
 
-// Force simulation
-const simulation = d3.forceSimulation(data.nodes)
-  .force("link", d3.forceLink(data.links).id(d => d.id).distance(120))
-  .force("charge", d3.forceManyBody().strength(-400))
-  .force("center", d3.forceCenter(width / 2, height / 2))
-  .force("collision", d3.forceCollide().radius(30));
+let x0 = Infinity, x1 = -x0;
+root.each(d => { if (d.x < x0) x0 = d.x; if (d.x > x1) x1 = d.x; });
+const OX = 100, OY = H/2 - (x0+x1)/2;
+root.each(d => { d.y += OX; d.x += OY; });
 
-// Draw links
-const link = g.append("g")
-  .selectAll("line")
-  .data(data.links)
-  .join("line")
+// ───────── RENDER ─────────
+const defs = svg.append("defs");
+defs.append("filter").attr("id","card-shadow").html(
+  '<feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.5"/>');
+
+g.append("g")
+  .selectAll("path").data(root.links()).join("path")
   .attr("class", "link")
-  .attr("stroke-width", 1.2);
+  .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
 
-// Draw link arrows (defs)
-svg.append("defs").selectAll("marker")
-  .data(["end"])
-  .join("marker")
-  .attr("id", "arrow")
-  .attr("viewBox", "0 -4 8 8")
-  .attr("refX", 22)
-  .attr("refY", 0)
-  .attr("markerWidth", 6)
-  .attr("markerHeight", 6)
-  .attr("orient", "auto")
-  .append("path")
-  .attr("d", "M0,-4L8,0L0,4")
-  .attr("fill", "#aaa");
-
-// Draw nodes
-const node = g.append("g")
-  .selectAll("g")
-  .data(data.nodes)
-  .join("g")
+const nodeG = g.append("g")
+  .selectAll("g").data(root.descendants()).join("g")
   .attr("class", "node")
-  .call(d3.drag()
-    .on("start", (event, d) => {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    })
-    .on("drag", (event, d) => {
-      d.fx = event.x;
-      d.fy = event.y;
-    })
-    .on("end", (event, d) => {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-    }))
-  .on("mouseenter", (event, d) => {
-    tip.style("opacity", "1")
-      .html(`<b style="font-size:14px;color:${groupColors[d.group]}">${d.label}</b>
-             <span style="color:#888;font-size:11px;margin-left:6px;">[${groupNames[d.group]}]</span>
-             <br><span style="color:#ccc;font-size:12px;">${d.desc || ''}</span>`);
-  })
-  .on("mousemove", (event) => {
-    tip.style("left", (event.pageX + 16) + "px")
-       .style("top", (event.pageY - 10) + "px");
-  })
-  .on("mouseleave", () => tip.style("opacity", "0"));
+  .attr("transform", d => `translate(${d.y},${d.x})`);
 
-node.append("circle")
-  .attr("r", d => d.size || 8)
-  .attr("fill", d => groupColors[d.group] || "#888")
-  .attr("stroke", "#fff")
-  .attr("stroke-width", 1.5);
+const tmpText = svg.append("text")
+  .style("font-family","'PingFang SC','Microsoft YaHei','Segoe UI',sans-serif")
+  .style("font-size","12.5px").style("font-weight","600")
+  .style("visibility","hidden");
+const textW = d => { tmpText.text(d.data.name); return tmpText.node().getComputedTextLength(); };
+tmpText.remove();
 
-node.append("text")
-  .text(d => d.label)
-  .attr("x", d => (d.size || 8) + 5)
-  .attr("y", 3)
-  .attr("fill", "#333")
-  .style("font-size", d => (d.size && d.size >= 14) ? "12px" : "10px")
-  .style("font-weight", d => (d.size && d.size >= 14) ? "bold" : "normal");
+nodeG.append("rect")
+  .attr("x", d => { const w = textW(d); return d.depth===0 ? -w/2-14 : -8; })
+  .attr("y", -13)
+  .attr("width", d => { const w = textW(d); return d.depth===0 ? w+28 : w+16; })
+  .attr("height", 26)
+  .attr("fill", d => d.data.color)
+  .attr("fill-opacity", d => d.depth===0 ? 0.25 : d.children ? 0.2 : 0.14)
+  .attr("stroke", d => d.data.color)
+  .attr("stroke-opacity", 0.45)
+  .attr("stroke-width", 1.2)
+  .attr("filter", "url(#card-shadow)");
 
-// Simulation tick
-simulation.on("tick", () => {
-  link
-    .attr("x1", d => d.source.x)
-    .attr("y1", d => d.source.y)
-    .attr("x2", d => d.target.x)
-    .attr("y2", d => d.target.y);
+nodeG.filter(d => d.depth > 0).append("circle")
+  .attr("cx", -13).attr("cy", 0)
+  .attr("r", d => d.children ? 5 : 3.5)
+  .attr("fill", d => d.data.color);
 
-  node.attr("transform", d => `translate(${d.x},${d.y})`);
-});
+nodeG.append("text")
+  .text(d => d.data.name)
+  .attr("x", 0).attr("y", 4.5)
+  .attr("text-anchor", d => d.depth===0 ? "middle" : "start")
+  .attr("fill", "#e2e8f0")
+  .style("font-size", d => d.depth<=1 ? "13px" : "12px")
+  .style("font-weight", d => d.depth<=1 ? 700 : 500)
+  .style("letter-spacing", ".2px");
 
-// Initial layout warmup
-simulation.alpha(1).restart();
-for (let i = 0; i < 300; i++) simulation.tick();
-simulation.alpha(0.1);
+// ───────── TOOLTIP ─────────
+const tip = d3.select("#tooltip");
+const tipBody = tip.node();
+nodeG.on("mouseenter", (ev, d) => {
+  tip.style("opacity","1").html(`
+    <div class="cat">${d.data.cat ? '📂 ' + d.data.cat : '📖 根节点'}</div>
+    <b style="color:${d.data.color}">${d.data.name}</b>
+    <div style="color:#cbd5e1;font-size:12px;margin-top:5px;">${d.data.desc||''}</div>
+  `);
+  renderMath(tipBody);
+}).on("mousemove", ev => {
+  tip.style("left",(ev.pageX+16)+"px").style("top",(ev.pageY-12)+"px");
+}).on("mouseleave", () => tip.style("opacity","0"));
+
+// ───────── INITIAL FIT ─────────
+setTimeout(() => {
+  const bb = g.node().getBBox();
+  const s = Math.min(0.85, W/bb.width, H/bb.height);
+  const tx = (W - bb.width*s)/2 - bb.x*s;
+  const ty = (H - bb.height*s)/2 - bb.y*s;
+  svg.transition().duration(600)
+    .call(d3.zoom().transform, d3.zoomIdentity.translate(tx,ty).scale(s));
+}, 100);
 </script>
 </body>
 </html>

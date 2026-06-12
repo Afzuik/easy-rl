@@ -263,16 +263,6 @@ $$
 
 > **策略评估** = 给定策略 $\pi$，计算每个状态的价值 $V_{\pi}(s)$。
 
-#### 策略评估迭代式
-
-$$
-V^{k}_{\pi}(s)=r(s, \pi(s))+\gamma \sum_{s^{\prime}} p\left(s^{\prime} \mid s, \pi(s)\right) V^{k-1}_{\pi}\left(s^{\prime}\right)
-$$
-
-$$
-V^{t}_{\pi}(s)=\sum_{a} p(\pi(s)=a)\Big(r(s, a)+\gamma \sum_{s^{\prime}} p(s^{\prime}\mid s,a) V^{t-1}_{\pi}(s^{\prime})\Big) \tag{2.17}
-$$
-
 ---
 
 ### 2.14 策略评估的迭代算法
