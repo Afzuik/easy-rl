@@ -265,6 +265,17 @@ $$
 
 ### ε-贪心探索
 
+**ε-贪心策略定义**
+
+$$
+\pi(a \mid s) = \begin{cases}
+1 - \varepsilon + \dfrac{\varepsilon}{|A|}, & a = \arg\max_{a'} Q(s, a') \\[8pt]
+\dfrac{\varepsilon}{|A|}, & \text{其他}
+\end{cases}
+$$
+
+> 以概率 $1-\varepsilon$ 选 Q 值最大的动作（利用），以概率 $\varepsilon$ 在所有动作中均匀随机选（探索）。最优动作额外获得 $\varepsilon/|A|$ 的概率加成，确保每个动作都有非零概率被访问。
+
 **ε-贪心策略改进的单调性证明**
 
 $$
