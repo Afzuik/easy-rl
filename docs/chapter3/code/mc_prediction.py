@@ -57,14 +57,11 @@ class SimpleGridWorld:
                     self.coord_to_idx[(r, c)] = idx
                     idx += 1
         self.n_states = len(self.states)  # 14
-        self.start_states = self.states  # 可以从任意非终止状态开始
 
     def reset(self, start_idx=None):
         """随机选择起点并返回。"""
         if start_idx is None:
             start_idx = np.random.randint(self.n_states)
-        self.pos = self.states[start_idx]
-        self.done = False
         return start_idx
 
     def step(self, state_idx, action):

@@ -72,12 +72,11 @@
 <div id="header">🧠 表格型方法 <span>第 3 章 · 知识图谱（整理版）</span></div>
 <div id="tooltip"></div>
 <div id="legend">
-  <div class="leg"><span style="background:#3b82f6"></span> 3.1 MDP</div>
-  <div class="leg"><span style="background:#f59e0b"></span> 3.2 Q表格</div>
-  <div class="leg"><span style="background:#10b981"></span> 3.3 核心概念</div>
-  <div class="leg"><span style="background:#8b5cf6"></span> 3.4 预测</div>
-  <div class="leg"><span style="background:#ef4444"></span> 3.5 控制</div>
-  <div class="leg"><span style="background:#64748b"></span> 3.6 总结</div>
+  <div class="leg"><span style="background:#3b82f6"></span> 一、动机</div>
+  <div class="leg"><span style="background:#f59e0b"></span> 二、Q表格</div>
+  <div class="leg"><span style="background:#8b5cf6"></span> 三、预测</div>
+  <div class="leg"><span style="background:#ef4444"></span> 四、控制</div>
+  <div class="leg"><span style="background:#64748b"></span> 总结</div>
   <span style="color:#475569">| 🖱 滚轮缩放 · 拖拽平移 · 悬停看详情</span>
 </div>
 
@@ -90,162 +89,140 @@ function renderMath(el) {
     delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],
     throwOnError: false, trust: true
   }); } catch(e){}
-}
-
-const treeData = {
+}const treeData = {
   name: "第3章 表格型方法",
   color: "#38bdf8", cat: "",
-  desc: "基于查找表的强化学习方法（蒙特卡洛、$Q$学习、Sarsa）。逻辑主线：MDP基础 → Q表格 → 核心概念 → 免模型预测 → 免模型控制。",
+  desc: "基于查找表的免模型强化学习。四大板块：有模型→免模型动机 → Q表格工具 → 预测 MC/TD → 控制 Sarsa/Q-learning。",
   children: [
-    // =========== 3.1 MDP 基础 ===========
+
+    // =========== 一、从有模型到免模型 ===========
     {
-      name: "3.1 MDP 基础",
-      color: "#3b82f6", cat: "3.1 框架",
-      desc: "序列决策的经典数学框架。状态、动作、转移概率、奖励 $(S,A,P,R)$ 构成四元组，加 $\\gamma$ 成五元组。",
+      name: "一、从有模型到免模型",
+      color: "#3b82f6", cat: "3.1 动机",
+      desc: "第2章的DP需要已知 $P$ 和 $R$，现实世界通常不知道。本章的方法：不依赖模型，从交互经验中直接学习。",
       children: [
-        { name: "有模型 (Model-based)", color: "#3b82f6", cat: "3.1 MDP",
-          desc: "$P$ 和 $R$ 已知。可直接用动态规划（策略迭代 / 价值迭代）求解最优策略。需要贝尔曼期望备份。",
+        { name: "有模型：已知 P & R → DP", color: "#3b82f6", cat: "3.1",
+          desc: "已知状态转移和奖励函数时，动态规划（策略迭代/价值迭代）直接求解。环境像透明棋盘，一切可见。",
           children: [
             { name: "贝尔曼期望备份", color: "#60a5fa", cat: "3.1 有模型",
-              desc: "$V_i(s)\\!\\leftarrow\\!\\sum_a\\pi(a|s)\\big[R(s,a)+\\gamma\\sum_{s'}\\!P(s'|s,a)V_{i-1}(s')\\big]$。两层求和，全宽备份。" }
+              desc: "$V_i(s)\\leftarrow\\sum_a\\pi(a|s)[R+\\gamma\\sum_{s'}PV_{i-1}(s')]$。全宽更新，需要模型。" }
           ]},
-        { name: "免模型 (Model-free)", color: "#3b82f6", cat: "3.1 MDP",
-          desc: "$P$ 和 $R$ 未知。智能体通过与环境交互采集轨迹数据，从经验中试错学习。本章核心内容。" },
-        { name: "马尔可夫性质", color: "#3b82f6", cat: "3.1 MDP",
-          desc: "$p[s_{t+1},r_t\\mid s_t,a_t]$：下一时刻仅由当前状态和动作决定，与历史无关。MDP 的根基。" },
+        { name: "免模型：未知 P & R → 试错学习", color: "#3b82f6", cat: "3.1",
+          desc: "$P$ 和 $R$ 均未知。智能体像盲人摸象——只能通过试错交互，从采集的轨迹中归纳经验。本章全部算法属于此类。" },
+        { name: "对比：有模型 vs 免模型", color: "#3b82f6", cat: "3.1",
+          desc: "有模型 = 规划（内部模拟）；免模型 = 学习（真实交互）。免模型泛化性更好，但数据效率较低。" },
+        { name: "马尔可夫性质回顾", color: "#3b82f6", cat: "3.1",
+          desc: "$p[s_{t+1},r_t|s_t,a_t]$：下一时刻仅与当前 $(s_t,a_t)$ 有关。序列决策的数学根基。" },
       ]
     },
 
-    // =========== 3.2 Q表格与价值函数 ===========
+    // =========== 二、Q表格 — 免模型的价值载体 ===========
     {
-      name: "3.2 Q表格与价值函数",
-      color: "#f59e0b", cat: "3.2 价值",
-      desc: "$|S|\\times|A|$ 的查找表，存储每个状态-动作对的估计价值。初始化为 $0$，通过与环境交互逐步更新。",
+      name: "二、Q表格 · 价值载体",
+      color: "#f59e0b", cat: "3.2 工具",
+      desc: "免模型下必须直接学 $Q(s,a)$ 而非 $V(s)$——因为不知道 $P$ 和 $R$，有了 $V$ 也算不出哪个动作好。$|S|\\times|A|$ 查找表是核心工具。",
       children: [
-        { name: "状态动作价值 Q(s,a)", color: "#f59e0b", cat: "3.2 价值",
-          desc: "$Q_\\pi(s,a)=\\mathbb{E}_\\pi[G_t\\mid s_t=s,a_t=a]$。在状态 $s$ 采取动作 $a$ 后，遵循策略 $\\pi$ 的期望累积奖励。" },
-        { name: "状态价值 V(s)", color: "#f59e0b", cat: "3.2 价值",
-          desc: "$V_\\pi(s)=\\mathbb{E}_\\pi[G_t\\mid s_t=s]$。评价某个状态本身的好坏。可从 $Q$ 按策略加权得到。" },
-        { name: "Q表格的结构", color: "#ea580c", cat: "3.2 价值",
-          desc: "行 = 所有状态（可用坐标或编号表示），列 = 所有动作（如上/下/左/右）。初始全为 $0$，像一本逐步完善的生活手册。" },
+        { name: "Q函数：状态-动作价值", color: "#f59e0b", cat: "3.2",
+          desc: "$Q_\\pi(s,a)=\\mathbb{E}_\\pi[G_t|s_t=s,a_t=a]$。有了 $Q$，最优动作直接 $\\arg\\max_a Q(s,a)$，无需模型。" },
+        { name: "V函数：状态价值", color: "#f59e0b", cat: "3.2",
+          desc: "$V_\\pi(s)=\\mathbb{E}_\\pi[G_t|s_t=s]$。可从 $Q$ 加权得到：$V_\\pi(s)=\\sum_a\\pi(a|s)Q_\\pi(s,a)$。" },
+        { name: "Q表格的结构", color: "#ea580c", cat: "3.2",
+          desc: "行=所有状态（坐标或编号），列=所有动作。初始全0，像一本逐步完善的生活手册：熊发怒时装死价值更高，熊离开时逃跑更划算。" },
+        { name: "折扣因子 γ：目光长短", color: "#ea580c", cat: "3.2",
+          desc: "$\\gamma=0$：只看眼前；$\\gamma=1$：无穷远。悬崖行走中 $\\gamma=0.6$：每步递推 $G_t=r_{t+1}+\\gamma G_{t+1}$。" },
       ]
     },
 
-    // =========== 3.3 核心概念 ===========
+    // =========== 三、免模型预测 ===========
     {
-      name: "3.3 核心概念：折扣与自举",
-      color: "#10b981", cat: "3.3 概念",
-      desc: "在进入具体算法之前，先掌握两个贯穿所有免模型方法的核心概念：折扣因子 $\\gamma$ 和自举。",
+      name: "三、免模型预测",
+      color: "#8b5cf6", cat: "3.3-3.5 预测",
+      desc: "问题：给定策略 $\\pi$，在不知道 $P$ 和 $R$ 下如何估计 $V_\\pi$？两条路：MC（走完再说）和 TD（走一步就学）。",
       children: [
-        { name: "折扣因子 γ ∈ [0,1]", color: "#10b981", cat: "3.3 概念",
-          desc: "$\\gamma=0$：目光短浅，只看单步奖励。$\\gamma=1$：目光长远，全部累加。$\\gamma=0.6$：折中。$\\gamma^n\\to 0$，越远的奖励影响越小。",
+        { name: "蒙特卡洛 MC ❮回合更新❯", color: "#8b5cf6", cat: "3.3 MC",
+          desc: "跑完完整轨迹，用真实 $G_t$ 的平均估计 $V(s)$。无自举、不依赖模型。必须有终止状态。$V(s)=S(s)/N(s)$。",
           children: [
-            { name: "悬崖行走问题", color: "#34d399", cat: "3.3 概念",
-              desc: "从起点 S 到终点 G，避开悬崖。每步 $-1$，掉崖 $-100$ 且重置到起点。经典例题演示 $\\gamma$ 对价值计算的影响。" },
-            { name: "持续式任务", color: "#34d399", cat: "3.3 概念",
-              desc: "无终止状态的任务（如股票交易）。必须用 $\\gamma<1$ 让未来奖励衰减，否则总回报会发散到无穷。" },
+            { name: "增量式 MC", color: "#a78bfa", cat: "3.3 MC",
+              desc: "$V(s_t)\\leftarrow V(s_t)+\\alpha(G_t-V(s_t))$。固定学习率替代 $1/N$。$\\alpha$ 大→适应快但波动；$\\alpha$ 小→稳定但慢。" },
+            { name: "MC 局限", color: "#a78bfa", cat: "3.3 MC",
+              desc: "回合必须结束才能更新 → 不适用于连续任务。高方差（轨迹随机性累积），但无偏。" },
           ]},
-        { name: "自举 (Bootstrapping)", color: "#10b981", cat: "3.3 概念",
-          desc: "用估计值来更新估计值。即用下一状态的价值 $V(s_{t+1})$ 来更新当前状态 $V(s_t)$。这是「强化」一词的真正含义。",
+        { name: "时序差分 TD ❮单步更新❯", color: "#8b5cf6", cat: "3.4 TD",
+          desc: "每走一步就更新：用 $r_{t+1}+\\gamma V(s_{t+1})$ 估计 $G_t$。自举 + 采样。可在线学习、从不完整序列学习、支持连续任务。",
           children: [
-            { name: "巴甫洛夫条件反射", color: "#34d399", cat: "3.3 概念",
-              desc: "铃声（中性刺激）+ 食物（无条件刺激）反复配对 → 铃声也能引起唾液分泌。类比：下一个状态的奖励不断「强化」上一个状态的价值。" },
-            { name: "网格世界演示", color: "#34d399", cat: "3.3 概念",
-              desc: "小黄球在网格中试错。有奖励的格子先被发现，其价值逐步传播到相邻格子。反复训练后形成最优路径。" },
+            { name: "TD(0) 核心公式", color: "#a78bfa", cat: "3.4 TD",
+              desc: "$V(s_t)\\leftarrow V(s_t)+\\alpha[r_{t+1}+\\gamma V(s_{t+1})-V(s_t)]$。TD目标=即时奖励+自举估计。TD误差 $\\delta_t$ = 目标 $-$ 当前值。" },
+            { name: "巴甫洛夫条件反射 ❬直觉❭", color: "#a78bfa", cat: "3.4 TD",
+              desc: "铃声(中性刺激)+食物(无条件)→ 铃声也能引起唾液分泌。类比：奖励先强化最近的状态，再反向层层强化更早状态——这就是「强化」的本意。" },
+            { name: "n 步 TD：MC↔TD 桥梁", color: "#a78bfa", cat: "3.4 TD",
+              desc: "$G_t^n=r_{t+1}+\\cdots+\\gamma^{n-1}r_{t+n}+\\gamma^nV(s_{t+n})$。$n=1$=TD，$n=\\infty$=MC。调节 $n$ 权衡偏差与方差。" },
           ]},
+        { name: "统一视角：自举×采样", color: "#7c3aed", cat: "3.5 统一",
+          desc: "DP=自举✓+采样✗，MC=自举✗+采样✓，TD=自举✓+采样✓。广度↑→DP，深度↑→MC，TD在中间。" },
+        { name: "偏差-方差权衡", color: "#7c3aed", cat: "3.5 统一",
+          desc: "MC：无偏（用真实 $G_t$）但高方差（轨迹随机）。TD：有偏（$V(s')$初始不准）但低方差（只依赖单步）。$n$步TD折中。" },
+        { name: "增量式学习 ❬数学基础❭", color: "#a78bfa", cat: "3.3/3.4 基础",
+          desc: "$\\mu_t=\\mu_{t-1}+\\frac{1}{t}(x_t-\\mu_{t-1})$。旧均值+学习率×(新样本−旧均值)。MC和TD共用这一数学模式。" },
       ]
     },
 
-    // =========== 3.4 免模型预测 ===========
+    // =========== 四、免模型控制 ===========
     {
-      name: "3.4 免模型预测",
-      color: "#8b5cf6", cat: "3.4 预测",
-      desc: "问题：给定策略 $\\pi$，在不知道 $P$ 和 $R$ 的情况下，如何估计它的价值函数？答案：MC（回合更新）和 TD（单步更新）。",
+      name: "四、免模型控制",
+      color: "#ef4444", cat: "3.6-3.9 控制",
+      desc: "问题：未知模型下如何找到 $\\pi^*$？答案：GPI = MC/TD评估 $Q$ + $\\varepsilon$-贪心改进，反复交替。引出Sarsa和Q-learning。",
       children: [
-        { name: "蒙特卡洛 (MC)", color: "#8b5cf6", cat: "3.4 预测",
-          desc: "纯采样方法。必须跑完完整轨迹，用实际回报 $G_t$ 的平均来估计 $V(s)$。无自举（直接用真实回报），必须有终止状态。",
+        { name: "GPI 广义策略迭代", color: "#ef4444", cat: "3.6 GPI",
+          desc: "策略迭代的免模型推广。评估(MC/TD估计$Q$) + 改进($\\varepsilon$-贪心选动作)交替进行。评估不必完全准确即可改进策略。",
           children: [
-            { name: "增量式 MC", color: "#a78bfa", cat: "3.4 预测",
-              desc: "$V(s_t)\\!\\leftarrow\\! V(s_t)+\\alpha(G_t-V(s_t))$。用固定学习率 $\\alpha$ 替代递减的 $1/N(s_t)$，控制更新速率。" },
-            { name: "经验平均回报", color: "#a78bfa", cat: "3.4 预测",
-              desc: "$V(s)=S(s)/N(s)$。大数定律保证 $N\\to\\infty$ 时 $V(s)\\to V_\\pi(s)$。只更新实际走过的轨迹上的状态。" },
+            { name: "ε-贪心探索", color: "#f87171", cat: "3.6",
+              desc: "$1-\\varepsilon$ 利用($\\arg\\max Q$)，$\\varepsilon$ 探索(随机)。$\\varepsilon$ 从 0.5→0.01 线性衰减。保证单调改进：$V_{\\pi'}\\geqslant V_\\pi$。" },
+            { name: "探索性开始 vs ε-贪心", color: "#f87171", cat: "3.6",
+              desc: "探索性开始(理论)：假设每回合起点随机均匀采样。ε-贪心(实用)：每步都有探索概率，更现实可行。" },
           ]},
-        { name: "时序差分 (TD)", color: "#8b5cf6", cat: "3.4 预测",
-          desc: "免模型 + 自举。每走一步即可更新，无需等回合结束。可从不完整序列学习，支持连续（无终止）任务。",
+        { name: "Sarsa ❮同策略 on-policy❯", color: "#ef4444", cat: "3.7 Sarsa",
+          desc: "行为策略 = 目标策略。用实际执行的 $a_{t+1}$ 更新，考虑探索影响 → 保守安全，悬崖行走中远离悬崖绕行。",
           children: [
-            { name: "TD(0) 一步更新", color: "#a78bfa", cat: "3.4 预测",
-              desc: "$V(s_t)\\!\\leftarrow\\! V(s_t)+\\alpha[r_{t+1}+\\gamma V(s_{t+1})-V(s_t)]$。TD目标 = 即时奖励 + 自举估计。TD误差 = 目标 $-$ 当前值。" },
-            { name: "n 步时序差分", color: "#a78bfa", cat: "3.4 预测",
-              desc: "TD(0) 是 $n=1$，MC 是 $n=\\infty$。调节 $n$ 可权衡偏差（TD 有偏但低方差）与方差（MC 无偏但高方差）。" },
+            { name: "Sarsa 更新公式", color: "#f87171", cat: "3.7",
+              desc: "$Q(s_t,a_t)\\leftarrow Q(s_t,a_t)+\\alpha[r_{t+1}+\\gamma Q(s_{t+1},a_{t+1})-Q(s_t,a_t)]$。名称来自五元组 $(s_t,a_t,r_{t+1},s_{t+1},a_{t+1})$。" },
+            { name: "n步Sarsa / Sarsa(λ)", color: "#f87171", cat: "3.7",
+              desc: "$n=1$=单步Sarsa，$n=\\infty$=MC控制。$\\lambda$ 对所有n步回报加权求和：$Q_t^\\lambda=(1-\\lambda)\\sum\\lambda^{n-1}Q_t^n$。" },
+            { name: "保守行为特征", color: "#f87171", cat: "3.7",
+              desc: "知道自己下一步可能随机探索 → 优化时主动避开危险区域。Sarsa路径：绕远但安全。" },
           ]},
-        { name: "自举 vs 采样（统一视角）", color: "#7c3aed", cat: "3.4 预测",
-          desc: "DP = 自举✓ + 采样✗；MC = 自举✗ + 采样✓；TD = 自举✓ + 采样✓。广度↑→DP，深度↑→MC，TD 在中间。" },
-        { name: "增量式学习", color: "#a78bfa", cat: "3.4 预测",
-          desc: "$\\mu_t=\\mu_{t-1}+\\frac{1}{t}(x_t-\\mu_{t-1})$。经验均值 → 增量均值。使在线更新成为可能，是 MC 和 TD 的共同基础。" },
+        { name: "Q-learning ❮异策略 off-policy❯", color: "#ef4444", cat: "3.8 QL",
+          desc: "行为策略 $\\mu$ $\\neq$ 目标策略 $\\pi$。用 $\\max_a Q(s',a)$ 更新，不关心实际探索 → 激进高效，悬崖行走中贴悬崖走最短路径。",
+          children: [
+            { name: "Q-learning 更新公式", color: "#f87171", cat: "3.8",
+              desc: "$Q(s_t,a_t)\\leftarrow Q(s_t,a_t)+\\alpha[r_{t+1}+\\gamma\\max_a Q(s_{t+1},a)-Q(s_t,a_t)]$。只需 $(s,a,r,s')$ 四元组，无需 $a_{t+1}$。" },
+            { name: "目标策略 π ❬军师❭", color: "#f87171", cat: "3.8",
+              desc: "$\\pi(s)=\\arg\\max_a Q(s,a)$。纯贪心，不与环境交互，只从数据中学习最优策略。" },
+            { name: "行为策略 μ ❬战士❭", color: "#f87171", cat: "3.8",
+              desc: "$\\varepsilon$-贪心探索环境，采集轨迹数据喂给目标策略。像海盗大胆冒险，把经验写给军师。" },
+            { name: "异策略三大优势", color: "#f87171", cat: "3.8",
+              desc: "①更高效探索；②可模仿学习（学其他智能体/人类的轨迹）；③可重用旧经验→DQN经验回放的基础。" },
+          ]},
+        { name: "On-policy vs Off-policy", color: "#dc2626", cat: "3.9 对比",
+          desc: "核心区别在TD目标：Sarsa用 $Q(s',a')$（实际），Q-learning用 $\\max_a Q(s',a)$（最优）。Sarsa保守绕行，Q-learning激进贴崖。" },
       ]
     },
 
-    // =========== 3.5 免模型控制 ===========
+    // =========== 本章总结 ===========
     {
-      name: "3.5 免模型控制",
-      color: "#ef4444", cat: "3.5 控制",
-      desc: "问题：在未知模型下如何找到最优策略？答案：GPI = 策略评估（MC/TD 估计 $Q$）+ 策略改进（$\\varepsilon$-贪心），反复交替。",
+      name: "本章总结：四板斧",
+      color: "#64748b", cat: "总结",
+      desc: "动机(有→免模型) → 工具(Q表格) → 预测(MC/TD/统一视角) → 控制(Sarsa/Q-learning)。表格型方法是深度RL的地基。",
       children: [
-        { name: "广义策略迭代 (GPI)", color: "#ef4444", cat: "3.5 控制",
-          desc: "策略迭代的免模型推广。有模型时用 DP 评估 + 贪心改进；免模型时用 MC/TD 评估 + $\\varepsilon$-贪心改进。评估不需要完全准确即可改进。",
-          children: [
-            { name: "ε-贪心探索", color: "#f87171", cat: "3.5 控制",
-              desc: "$1-\\varepsilon$ 概率利用（选 $\\arg\\max Q$），$\\varepsilon$ 概率探索（随机选）。$\\varepsilon$ 随时间递减。保证 $V_{\\pi'}\\geqslant V_\\pi$（单调改进）。" },
-            { name: "MC vs TD 做控制", color: "#f87171", cat: "3.5 控制",
-              desc: "MC：无偏高方差。TD：有偏低方差。低方差 → 学习更稳定 → TD 在实际控制任务中更受欢迎。引出 Sarsa 和 $Q$学习。" },
-          ]},
-        { name: "Sarsa（同策略）", color: "#ef4444", cat: "3.5 控制",
-          desc: "On-policy TD 控制。行为策略 = 目标策略。用实际执行的 $a_{t+1}$ 更新，保守安全，会主动远离悬崖。",
-          children: [
-            { name: "Sarsa 更新公式", color: "#f87171", cat: "3.5 控制",
-              desc: "$Q(s_t,a_t)\\!\\leftarrow\\! Q(s_t,a_t)+\\alpha[r_{t+1}+\\gamma Q(s_{t+1},a_{t+1})-Q(s_t,a_t)]$。名称来自 $(s_t,a_t,r_{t+1},s_{t+1},a_{t+1})$。" },
-            { name: "n 步 Sarsa", color: "#f87171", cat: "3.5 控制",
-              desc: "$n=1$：单步 Sarsa；$n=2$：两步后更新；$n=\\infty$：退化为 MC 控制。步数越多越接近 MC。" },
-            { name: "Sarsa(λ)", color: "#f87171", cat: "3.5 控制",
-              desc: "资格迹衰减 $\\lambda$ 对所有 $n$ 步回报加权求和：$Q_t^\\lambda=(1-\\lambda)\\sum_{n=1}^{\\infty}\\lambda^{n-1}Q_t^n$。" },
-            { name: "同策略特点", color: "#f87171", cat: "3.5 控制",
-              desc: "只维护一种策略 $\\pi$，既用它探索也用它学习。需兼顾探索与利用 → 显得「胆小」，但更安全。" },
-          ]},
-        { name: "Q学习（异策略）", color: "#ef4444", cat: "3.5 控制",
-          desc: "Off-policy TD 控制。行为策略 $\\mu$ $\\neq$ 目标策略 $\\pi$。分离探索与利用，激进、直奔最优。",
-          children: [
-            { name: "Q学习 更新公式", color: "#f87171", cat: "3.5 控制",
-              desc: "$Q(s_t,a_t)\\!\\leftarrow\\! Q(s_t,a_t)+\\alpha[r_{t+1}+\\gamma\\max_a Q(s_{t+1},a)-Q(s_t,a_t)]$。用 $\\max Q$ 而非实际 $a_{t+1}$。" },
-            { name: "目标策略 π", color: "#f87171", cat: "3.5 控制",
-              desc: "$\\pi(s)=\\arg\\max_a Q(s,a)$。待学习的最优策略，纯贪心，不与环境交互，专注从数据中学习。" },
-            { name: "行为策略 μ", color: "#f87171", cat: "3.5 控制",
-              desc: "用 $\\varepsilon$-greedy 在环境中探索，产生轨迹数据「喂」给目标策略。像激进的海盗，大胆采集经验。" },
-            { name: "异策略优势", color: "#f87171", cat: "3.5 控制",
-              desc: "可学其他智能体的轨迹（模仿学习）；可重用旧策略产生的数据；学习效率更高。" },
-          ]},
-        { name: "On-policy vs Off-policy", color: "#dc2626", cat: "3.5 控制",
-          desc: "核心区别在 TD 目标：Sarsa 用 $Q(s_{t+1},a_{t+1})$（实际执行的动作），$Q$学习用 $\\max_a Q(s_{t+1},a)$（最优动作）。Sarsa 保守，$Q$学习激进。" },
-      ]
-    },
-
-    // =========== 3.6 本章总结 ===========
-    {
-      name: "3.6 本章总结",
-      color: "#64748b", cat: "3.6 总结",
-      desc: "逻辑主线：MDP（框架） → Q表格（目标） → 折扣+自举（工具） → 预测 MC/TD（评估策略） → 控制 Sarsa/Q学习（找到最优策略）。表格型方法是深度 RL 的基础。",
-      children: [
-        { name: "四种方法对比", color: "#94a3b8", cat: "3.6 总结",
-          desc: "DP：有模型、自举、不采样。MC：免模型、不自举、采样（回合）。TD：免模型、自举、采样（单步）。穷举搜索：深度+广度都最大。" },
-        { name: "预测 vs 控制", color: "#94a3b8", cat: "3.6 总结",
-          desc: "预测（评估）：给定 $\\pi$，求 $V_\\pi$ 或 $Q_\\pi$。控制（优化）：找到使价值最大的 $\\pi^*$。GPI 把两者统一为交替迭代。" },
-        { name: "探索 vs 利用", color: "#94a3b8", cat: "3.6 总结",
-          desc: "利用 = 选已知最好的；探索 = 尝试未知的。$\\varepsilon$-贪心是最简单平衡。同策略需兼顾两者，异策略可分离。" },
+        { name: "四种方法对比", color: "#94a3b8", cat: "总结",
+          desc: "DP=有模型+自举+不采样；MC=免模型+不自举+回合采样；TD=免模型+自举+单步采样；穷举=广度+深度皆最大。" },
+        { name: "预测 vs 控制", color: "#94a3b8", cat: "总结",
+          desc: "预测：给定 $\\pi$ 求 $V_\\pi$ 或 $Q_\\pi$。控制：找 $\\pi^*$ 使价值最大。GPI 统一两者：评估与改进交替迭代。" },
+        { name: "探索 vs 利用", color: "#94a3b8", cat: "总结",
+          desc: "利用=选已知最好的；探索=尝试未知的。$\\varepsilon$-贪心是最简平衡。同策略需兼顾两者，异策略可分离 → 学得更快。" },
       ]
     }
   ]
 };
-
-// ───────── LAYOUT ─────────
 const W = window.innerWidth, H = window.innerHeight;
 const dx = 220, dy = 50;
 

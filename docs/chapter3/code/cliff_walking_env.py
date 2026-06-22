@@ -95,7 +95,7 @@ class CliffWalkingEnv:
 
     def _is_cliff(self, r, c):
         """判断 (r, c) 是否是悬崖。"""
-        return r == 3 and 1 <= c <= 10
+        return r in self.cliff_rows and 1 <= c <= 10
 
     def _coord_to_idx(self, coord):
         """(row, col) → 状态索引。"""
