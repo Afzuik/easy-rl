@@ -64,6 +64,8 @@ def train(args: argparse.Namespace) -> ActorCritic:
     print("=" * 76)
 
     for update in range(1, args.updates + 1):
+        # 每个 update 先用当前策略采样一批数据。采样时的策略随后
+        # 被视为 pi_old；同一批数据会在下面被重复训练多个 epoch。
         batch, state, ongoing_episode_return, completed_returns = collect_rollout(
             env,
             model,
@@ -80,6 +82,8 @@ def train(args: argparse.Namespace) -> ActorCritic:
         stopped_early = False
 
         for _ in range(args.epochs):
+            # PPO 不是对整批 rollout 一次更新，而是打乱后切成小批量。
+            # 同一批 old_policy 数据可被复用多轮，但 KL 不能漂太远。
             for indices in iterate_minibatches(
                 len(batch.states), args.minibatch_size
             ):
@@ -91,19 +95,31 @@ def train(args: argparse.Namespace) -> ActorCritic:
 
                 distribution = model.distribution(states)
                 new_log_probs = distribution.log_prob(actions)
+                # ratio = pi_new(a|s) / pi_old(a|s)。
+                # old_log_probs 已在采样时冻结，所以这里能衡量新旧策略
+                # 对同一个动作的概率变化。
                 ratios = torch.exp(new_log_probs - old_log_probs)
 
+                # 未裁剪的替代目标：ratio * A。
+                # 若 A>0，希望 ratio 增大；若 A<0，希望 ratio 减小。
                 original_objective = ratios * advantages
                 clipped_ratios = torch.clamp(
                     ratios,
                     1.0 - args.clip_epsilon,
                     1.0 + args.clip_epsilon,
                 )
+                # 裁剪后的目标限制 ratio 不要离 1 太远，相当于用简单
+                # 一阶优化近似“信任区域”。
                 clipped_objective = clipped_ratios * advantages
+                # 取 min 是 PPO-Clip 的关键：
+                # - A>0 时，ratio 超过上界不会继续增加收益；
+                # - A<0 时，ratio 低于下界不会继续增加收益。
+                # PyTorch 最小化 loss，所以最大化目标要取负号。
                 policy_loss = -torch.min(
                     original_objective, clipped_objective
                 ).mean()
 
+                # Critic 拟合 GAE 得到的 returns；entropy 鼓励探索。
                 value_loss = F.mse_loss(model.value(states), returns)
                 entropy = distribution.entropy().mean()
                 loss = (
@@ -123,6 +139,8 @@ def train(args: argparse.Namespace) -> ActorCritic:
                 last_value_loss = float(value_loss.item())
 
             with torch.no_grad():
+                # 每个 epoch 后用整批 rollout 监控 KL。如果新策略已经
+                # 偏离 pi_old 太远，就停止当前批次的后续 epoch。
                 full_distribution = model.distribution(batch.states)
                 full_kl = float(
                     categorical_kl(
@@ -134,6 +152,7 @@ def train(args: argparse.Namespace) -> ActorCritic:
                 break
 
         with torch.no_grad():
+            # 这些统计量只用于日志，帮助观察 PPO 的约束是否生效。
             final_distribution = model.distribution(batch.states)
             new_log_probs = final_distribution.log_prob(batch.actions)
             final_ratios = torch.exp(new_log_probs - batch.old_log_probs)

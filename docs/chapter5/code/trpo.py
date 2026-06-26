@@ -46,10 +46,16 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 def flat_parameters(module: torch.nn.Module) -> torch.Tensor:
+    """把 Actor 的所有参数拉平成一个向量。
+
+    TRPO 的线搜索需要临时尝试 theta + step，因此把参数展平后
+    更容易执行“保存旧参数、设置候选参数、必要时回滚”。
+    """
     return torch.cat([parameter.detach().reshape(-1) for parameter in module.parameters()])
 
 
 def set_flat_parameters(module: torch.nn.Module, flat_values: torch.Tensor) -> None:
+    """把展平向量写回网络参数。"""
     offset = 0
     with torch.no_grad():
         for parameter in module.parameters():
@@ -65,6 +71,11 @@ def flat_gradient(
     module: torch.nn.Module,
     create_graph: bool = False,
 ) -> torch.Tensor:
+    """计算 output 对模块参数的梯度，并展平成一个向量。
+
+    create_graph=True 时保留高阶求导图，用于 Hessian-vector product。
+    TRPO 不显式构造 Hessian，而是通过二阶自动微分得到 Fv。
+    """
     gradients = torch.autograd.grad(
         output,
         tuple(module.parameters()),
@@ -81,12 +92,14 @@ def conjugate_gradient(
     residual_tolerance: float = 1e-10,
 ) -> torch.Tensor:
     """不显式构造 Fisher 矩阵，迭代求解 F x = vector。"""
+    # 初始解为 0，此时残差 r = b - A*0 = b。
     solution = torch.zeros_like(vector)
     residual = vector.clone()
     direction = residual.clone()
     residual_dot = torch.dot(residual, residual)
 
     for _ in range(iterations):
+        # 只需要能计算 A*p，不需要真的存储矩阵 A。
         matrix_direction = matrix_vector_product(direction)
         alpha = residual_dot / (torch.dot(direction, matrix_direction) + 1e-8)
         solution += alpha * direction
@@ -97,6 +110,7 @@ def conjugate_gradient(
             break
 
         beta = new_residual_dot / (residual_dot + 1e-8)
+        # 新搜索方向 = 当前残差 + beta * 旧方向。
         direction = residual + beta * direction
         residual_dot = new_residual_dot
 
@@ -124,6 +138,7 @@ def train(args: argparse.Namespace) -> ActorCritic:
     print("=" * 76)
 
     for update in range(1, args.updates + 1):
+        # 和 PPO 一样，先用当前策略采样一批数据并冻结 old_policy 信息。
         batch, state, ongoing_episode_return, completed_returns = collect_rollout(
             env,
             model,
@@ -136,6 +151,7 @@ def train(args: argparse.Namespace) -> ActorCritic:
         recent_episode_returns.extend(completed_returns)
 
         # 先训练 Critic。TRPO 的硬约束只作用于 Actor。
+        # Critic 用普通 MSE 回归 returns，不参与 KL 信任区域约束。
         for _ in range(args.value_epochs):
             predicted_values = model.value(batch.states)
             value_loss = F.mse_loss(predicted_values, batch.returns)
@@ -144,21 +160,33 @@ def train(args: argparse.Namespace) -> ActorCritic:
             value_optimizer.step()
 
         def surrogate_objective() -> torch.Tensor:
+            """TRPO/PPO 共用的替代目标 E[ratio * A]。"""
             distribution = model.distribution(batch.states)
             new_log_probs = distribution.log_prob(batch.actions)
+            # old_log_probs 来自采样时的 pi_old，新 log_prob 来自当前 actor。
             ratios = torch.exp(new_log_probs - batch.old_log_probs)
             return torch.mean(ratios * batch.advantages)
 
         def mean_kl() -> torch.Tensor:
+            """当前 actor 与 old_policy 的平均 KL。"""
             distribution = model.distribution(batch.states)
             return categorical_kl(
                 batch.old_action_probs, distribution
             ).mean()
 
         objective_before = surrogate_objective()
+        # g = gradient of surrogate objective with respect to actor params。
         policy_gradient = flat_gradient(objective_before, model.actor)
 
         def fisher_vector_product(vector: torch.Tensor) -> torch.Tensor:
+            """计算 (F + damping I) v。
+
+            F 是 KL 关于策略参数的二阶近似，也就是 Fisher 信息矩阵。
+            这里通过:
+                grad_kl = ∇ KL
+                grad(grad_kl · v) = H_KL v
+            得到 Hessian-vector product。
+            """
             kl = mean_kl()
             kl_gradient = flat_gradient(kl, model.actor, create_graph=True)
             kl_vector_product = torch.dot(kl_gradient, vector)
@@ -167,17 +195,20 @@ def train(args: argparse.Namespace) -> ActorCritic:
             )
             return hessian_vector.detach() + args.damping * vector
 
+        # 共轭梯度求 natural_direction ≈ F^{-1} g。
         natural_direction = conjugate_gradient(
             fisher_vector_product,
             policy_gradient.detach(),
             iterations=args.cg_iterations,
         )
+        # 根据二次近似 0.5 * step^T F step <= max_kl 缩放步长。
         fisher_direction = fisher_vector_product(natural_direction)
         quadratic_term = torch.dot(natural_direction, fisher_direction)
         step_scale = math.sqrt(
             2.0 * args.max_kl / (float(quadratic_term.item()) + 1e-8)
         )
         full_step = natural_direction * step_scale
+        # 线性近似下，沿 full_step 走一步预期能改善多少替代目标。
         expected_improvement = float(torch.dot(policy_gradient, full_step).item())
 
         old_parameters = flat_parameters(model.actor)
@@ -186,6 +217,8 @@ def train(args: argparse.Namespace) -> ActorCritic:
         accepted_fraction = 0.0
 
         for line_search_step in range(args.line_search_steps):
+            # 回溯线搜索：从 full_step 开始，若 KL 越界或目标没改善，
+            # 就不断乘 backtrack_coefficient 缩小步长。
             fraction = args.backtrack_coefficient**line_search_step
             candidate_parameters = old_parameters + fraction * full_step
             set_flat_parameters(model.actor, candidate_parameters)
@@ -202,11 +235,13 @@ def train(args: argparse.Namespace) -> ActorCritic:
                 candidate_kl <= args.max_kl
                 and actual_improvement > required_improvement
             ):
+                # 只有同时满足 KL 约束和目标改善，候选参数才会被接受。
                 accepted = True
                 accepted_fraction = fraction
                 break
 
         if not accepted:
+            # 所有候选步都失败时，回滚到旧 actor 参数，保证不破坏策略。
             set_flat_parameters(model.actor, old_parameters)
 
         with torch.no_grad():

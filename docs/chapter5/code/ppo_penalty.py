@@ -66,6 +66,8 @@ def train(args: argparse.Namespace) -> ActorCritic:
     print("=" * 76)
 
     for update in range(1, args.updates + 1):
+        # 采样阶段：当前策略产生 rollout，并将采样时的 log_prob /
+        # action_probs 冻结为 pi_old 的参考值。
         batch, state, ongoing_episode_return, completed_returns = collect_rollout(
             env,
             model,
@@ -82,6 +84,8 @@ def train(args: argparse.Namespace) -> ActorCritic:
         stopped_early = False
 
         for _ in range(args.epochs):
+            # PPO-Penalty 同样会在同一批 old_policy 数据上训练多轮。
+            # 不同之处是它不用 clip，而是在目标函数里显式加入 KL 惩罚。
             for indices in iterate_minibatches(
                 len(batch.states), args.minibatch_size
             ):
@@ -94,11 +98,17 @@ def train(args: argparse.Namespace) -> ActorCritic:
 
                 distribution = model.distribution(states)
                 new_log_probs = distribution.log_prob(actions)
+                # ratio 是重要性采样权重，把 pi_old 数据修正到 pi_theta。
                 ratios = torch.exp(new_log_probs - old_log_probs)
+                # KL(old || new) 衡量新旧策略完整动作分布的距离。
                 kl = categorical_kl(old_action_probs, distribution).mean()
 
+                # PPO-Penalty 的目标：
+                #   maximize E[ratio * A] - beta * KL
+                # 这里改写为最小化 -surrogate + beta * KL。
                 surrogate = torch.mean(ratios * advantages)
                 policy_loss = -surrogate + beta * kl
+                # Critic 和探索项与 PPO-Clip 保持一致。
                 value_loss = F.mse_loss(model.value(states), returns)
                 entropy = distribution.entropy().mean()
                 loss = (
@@ -118,6 +128,8 @@ def train(args: argparse.Namespace) -> ActorCritic:
                 last_value_loss = float(value_loss.item())
 
             with torch.no_grad():
+                # 如果 KL 已经显著越界，就提前停止当前 batch 的策略更新；
+                # 这不是停止整个训练，只是进入下一轮重新采样。
                 full_distribution = model.distribution(batch.states)
                 full_kl = float(
                     categorical_kl(
@@ -129,6 +141,7 @@ def train(args: argparse.Namespace) -> ActorCritic:
                 break
 
         # 自适应 KL 惩罚系数。KL 太大就加强惩罚，太小就减弱惩罚。
+        # beta 调整影响下一轮 update 中的策略损失。
         with torch.no_grad():
             final_distribution = model.distribution(batch.states)
             final_kl = float(

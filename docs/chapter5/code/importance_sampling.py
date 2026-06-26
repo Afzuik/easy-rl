@@ -29,6 +29,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 def normal_pdf(x: np.ndarray, mean: float, std: float) -> np.ndarray:
+    """正态分布概率密度函数。
+
+    重要性采样只需要知道 p(x) 和 q(x) 在样本点上的密度值，
+    不要求真的能从目标分布 p 采样。
+    """
     coefficient = 1.0 / (std * math.sqrt(2.0 * math.pi))
     exponent = -0.5 * ((x - mean) / std) ** 2
     return coefficient * np.exp(exponent)
@@ -40,15 +45,26 @@ def importance_sampling(
     proposal_mean: float,
     proposal_std: float,
 ) -> tuple[float, float, float, float]:
-    """从 q 采样并返回估计值、标准误、有效样本量和最大权重。"""
+    """从 q 采样并返回估计值、标准误、有效样本量和最大权重。
+
+    数学对应:
+        E_p[f(x)] = E_q[f(x) * p(x) / q(x)]
+
+    这里 f(x)=x^2。权重 p(x)/q(x) 越极端，有限样本估计越不稳定。
+    """
+    # 真实采样来自 proposal distribution q，而不是目标分布 p。
     samples = rng.normal(proposal_mean, proposal_std, size=sample_count)
+    # 分别计算每个样本在 p 和 q 下的密度，用二者比值修正采样偏差。
     target_density = normal_pdf(samples, mean=-2.0, std=1.0)
     proposal_density = normal_pdf(samples, proposal_mean, proposal_std)
     weights = target_density / proposal_density
+    # 对 f(x)=x^2 乘以重要性权重，得到 q 分布下的无偏估计项。
     weighted_values = samples**2 * weights
 
     estimate = float(weighted_values.mean())
     standard_error = float(weighted_values.std(ddof=1) / math.sqrt(sample_count))
+    # ESS 越接近 sample_count，说明权重越均匀；越小表示只有少数样本
+    # 承担了大部分权重，估计方差会很高。
     effective_sample_size = float(
         weights.sum() ** 2 / np.sum(weights**2)
     )
@@ -62,6 +78,7 @@ def repeated_experiment(
     proposal_mean: float,
     proposal_std: float,
 ) -> tuple[float, float]:
+    """重复多次实验，观察同一 q 下估计值的跨实验波动。"""
     estimates = [
         importance_sampling(
             rng,
@@ -84,13 +101,17 @@ def main() -> None:
     rng = np.random.default_rng(args.seed)
     true_value = 5.0
 
+    # 对 X~N(-2,1)，E[X^2]=Var(X)+E[X]^2=1+4=5。
+    # 这个真值用于直观看出重要性采样估计是否靠谱。
     print("=" * 68)
     print("重要性采样: 使用 q 的样本估计 E_p[x^2]")
     print("目标分布 p=N(-2,1), f(x)=x^2, 真实值=5")
     print("=" * 68)
 
     proposals = [
+        # q 与 p 接近时，权重不会过于极端，ESS 较高。
         ("接近目标的 q", -1.5, 1.2),
+        # q 与 p 距离较远时，理论仍可无偏，但有限样本方差会变大。
         ("远离目标的 q", 2.0, 2.5),
     ]
 
@@ -126,4 +147,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
