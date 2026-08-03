@@ -482,6 +482,12 @@ critic: Q_phi(s, a)
 最大化 Q_phi(s, mu_theta(s))
 ```
 
+令
+
+$$
+a_\theta = \mu_\theta(s)
+$$
+
 也就是：
 
 $$
@@ -489,7 +495,8 @@ $$
 =
 \mathbb{E}_{s}
 \left[
-\left.\nabla_a Q_\phi(s,a)\right|_{a=\mu_\theta(s)}
+\nabla_a Q_\phi(s,a_\theta)
+\cdot
 \nabla_\theta \mu_\theta(s)
 \right]
 $$
@@ -762,9 +769,12 @@ $$
 =
 \mathbb{E}_s
 \left[
-\left.\nabla_a Q_\phi(s,a)\right|_{a=\mu_\theta(s)}
+\nabla_a Q_\phi(s,a_\theta)
+\cdot
 \nabla_\theta \mu_\theta(s)
 \right]
+,\quad
+a_\theta=\mu_\theta(s)
 $$
 
 本章最重要的几句话：
